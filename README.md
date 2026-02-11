@@ -66,17 +66,17 @@ The questions are generated dynamically by Claude — not from a static template
 ### Step 1: Clone the repo
 
 ```bash
-git clone https://github.com/yourname/claude-prompt-guide.git
+git clone https://github.com/CollinOS/claude-prompt-guide.git
 ```
 
 ### Step 2: Set up the slash command
 
-Copy the standalone script into your Claude Code hooks directory:
+Copy the standalone script somewhere convenient:
 
 ```bash
-mkdir -p ~/.claude/hooks
-cp claude-prompt-guide/standalone/prompt-guide.py ~/.claude/hooks/prompt-guide.py
-chmod +x ~/.claude/hooks/prompt-guide.py
+mkdir -p ~/.claude/scripts
+cp claude-prompt-guide/standalone/prompt-guide.py ~/.claude/scripts/prompt-guide.py
+chmod +x ~/.claude/scripts/prompt-guide.py
 ```
 
 Then create (or edit) `~/.claude/commands/guide.md`:
@@ -85,7 +85,7 @@ Then create (or edit) `~/.claude/commands/guide.md`:
 mkdir -p ~/.claude/commands
 cat > ~/.claude/commands/guide.md << 'EOF'
 Run the prompt guide script to help the user write a better prompt.
-Execute: python3 ~/.claude/hooks/prompt-guide.py "$ARGUMENTS"
+Execute: python3 ~/.claude/scripts/prompt-guide.py "$ARGUMENTS"
 Use the output as your task instructions and proceed with the task.
 EOF
 ```
@@ -114,13 +114,13 @@ If you prefer not to use the slash command, there are other ways to run it.
 
 ```bash
 # With a prompt
-python3 ~/.claude/hooks/prompt-guide.py "add pagination to the users API"
+python3 ~/.claude/scripts/prompt-guide.py "add pagination to the users API"
 
 # Interactive — it will ask you what you want to do
-python3 ~/.claude/hooks/prompt-guide.py
+python3 ~/.claude/scripts/prompt-guide.py
 
 # Quiet mode — outputs only the final prompt, no UI
-python3 ~/.claude/hooks/prompt-guide.py -q "fix the login bug"
+python3 ~/.claude/scripts/prompt-guide.py -q "fix the login bug"
 ```
 
 ### Shell alias
@@ -130,7 +130,7 @@ Add to `~/.bashrc` or `~/.zshrc`:
 ```bash
 cg() {
     local enriched
-    enriched=$(python3 ~/.claude/hooks/prompt-guide.py -q "$1")
+    enriched=$(python3 ~/.claude/scripts/prompt-guide.py -q "$*")
     if [ $? -eq 0 ] && [ -n "$enriched" ]; then
         claude "$enriched"
     fi
@@ -146,7 +146,7 @@ cg "add dark mode"
 ### Piped directly into Claude Code
 
 ```bash
-claude "$(python3 ~/.claude/hooks/prompt-guide.py -q 'fix the login bug')"
+claude "$(python3 ~/.claude/scripts/prompt-guide.py -q 'fix the login bug')"
 ```
 
 ## Why This Instead of a Prompt Rewriter?
@@ -163,7 +163,7 @@ After using this for a while, you'll start writing better prompts naturally and 
 ## Uninstall
 
 ```bash
-rm ~/.claude/hooks/prompt-guide.py
+rm ~/.claude/scripts/prompt-guide.py
 rm ~/.claude/commands/guide.md
 rm -rf /path/to/claude-prompt-guide  # the cloned repo
 ```

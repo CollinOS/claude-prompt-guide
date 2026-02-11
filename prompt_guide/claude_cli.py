@@ -6,19 +6,32 @@ import subprocess
 import sys
 
 
+class ClaudeNotFoundError(RuntimeError):
+    """Raised when the claude CLI binary cannot be found."""
+
+
+_cached_claude_bin: str | None = None
+
+
 def find_claude_cli() -> str | None:
-    """Locate the claude CLI binary."""
+    """Locate the claude CLI binary. Result is cached after first call."""
+    global _cached_claude_bin
+    if _cached_claude_bin is not None:
+        return _cached_claude_bin
+
     found = shutil.which("claude")
     if found:
+        _cached_claude_bin = found
         return found
     for path in ["~/.claude/local/claude", "/usr/local/bin/claude"]:
         expanded = os.path.expanduser(path)
         if os.path.isfile(expanded):
+            _cached_claude_bin = expanded
             return expanded
     return None
 
 
-def call_claude(prompt: str, system: str = "", timeout: int = 30) -> str:
+def call_claude(prompt: str, system: str = "", timeout: int = 60) -> str:
     """
     Call the claude CLI in print mode (non-interactive, single response).
     Uses whatever auth the user already has configured for Claude Code.
@@ -30,15 +43,16 @@ def call_claude(prompt: str, system: str = "", timeout: int = 30) -> str:
 
     Returns:
         Claude's response text, or empty string on failure.
+
+    Raises:
+        ClaudeNotFoundError: If the claude CLI binary cannot be found.
     """
     claude_bin = find_claude_cli()
     if not claude_bin:
-        print(
-            "Error: claude CLI not found. Is Claude Code installed?\n"
-            "Install: https://docs.anthropic.com/en/docs/claude-code",
-            file=sys.stderr,
+        raise ClaudeNotFoundError(
+            "claude CLI not found. Is Claude Code installed?\n"
+            "Install: https://docs.anthropic.com/en/docs/claude-code"
         )
-        sys.exit(1)
 
     cmd = [claude_bin, "--print", "--output-format", "text"]
 

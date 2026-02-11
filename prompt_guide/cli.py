@@ -5,7 +5,7 @@ import json
 import re
 import sys
 
-from prompt_guide.claude_cli import call_claude
+from prompt_guide.claude_cli import call_claude, ClaudeNotFoundError
 from prompt_guide.prompts import ANALYZER_SYSTEM, ASSEMBLER_SYSTEM
 
 # ── Optional rich import ──────────────────────────────────────────────
@@ -24,8 +24,15 @@ except ImportError:
 
 # ── UI helpers (work with or without rich) ────────────────────────────
 
+# Only strip Rich-style markup tags like [bold], [dim], [/bold], [green],
+# [bold yellow], etc. — not arbitrary square-bracket content like array[0].
+_RICH_TAG_RE = re.compile(
+    r"\[/?[a-zA-Z]\w*(?:\s+\w+)*\]"
+)
+
+
 def _strip_markup(text: str) -> str:
-    return re.sub(r"\[.*?\]", "", text)
+    return _RICH_TAG_RE.sub("", text)
 
 
 def show(msg: str):
@@ -64,8 +71,11 @@ def ask_choice(prompt_text: str, choices: list[str], default: str = "yes") -> st
             console=console,
         )
     else:
-        raw = input(f"{prompt_text} [{'/'.join(choices)}] ({default}): ").strip()
-        return raw if raw in choices else default
+        try:
+            raw = input(f"{prompt_text} [{'/'.join(choices)}] ({default}): ").strip()
+            return raw if raw in choices else default
+        except EOFError:
+            return default
 
 
 # ── Core logic ────────────────────────────────────────────────────────
@@ -87,12 +97,20 @@ def parse_json_response(raw: str) -> dict:
     return {}
 
 
+def _validate_questions(questions: list) -> list[dict]:
+    """Filter questions list to only well-formed question dicts."""
+    valid = []
+    for q in questions:
+        if isinstance(q, dict) and isinstance(q.get("question"), str) and q["question"].strip():
+            valid.append(q)
+    return valid
+
+
 def analyze(raw_prompt: str) -> dict:
     """Ask Claude to analyze the prompt and generate follow-up questions."""
     response = call_claude(
         prompt=f"Analyze this prompt:\n\n{raw_prompt}",
         system=ANALYZER_SYSTEM,
-        timeout=30,
     )
     if not response:
         return {"task_summary": "", "questions": []}
@@ -100,6 +118,13 @@ def analyze(raw_prompt: str) -> dict:
     result = parse_json_response(response)
     if not result:
         return {"task_summary": "", "questions": []}
+
+    # Validate that questions is a list of well-formed dicts
+    raw_questions = result.get("questions", [])
+    if not isinstance(raw_questions, list):
+        raw_questions = []
+    result["questions"] = _validate_questions(raw_questions)
+
     return result
 
 
@@ -114,27 +139,37 @@ def assemble(original: str, answers: dict[str, str]) -> str:
     response = call_claude(
         prompt=f"Original prompt:\n{original}\n\nAdditional context:\n{context}",
         system=ASSEMBLER_SYSTEM,
-        timeout=30,
     )
     return response if response else original
 
 
-def run(raw_prompt: str) -> str:
-    """Main interactive guide flow."""
-    show("")
-    show_panel(raw_prompt, title="Your prompt")
+def run(raw_prompt: str, quiet: bool = False) -> str:
+    """Main interactive guide flow.
 
-    show("\n[dim]Thinking about what would help...[/dim]")
+    Args:
+        raw_prompt: The user's draft prompt.
+        quiet: If True, skip interactive Q&A and auto-send the assembled prompt.
+    """
+    if not quiet:
+        show("")
+        show_panel(raw_prompt, title="Your prompt")
+        show("\n[dim]Thinking about what would help...[/dim]")
+
     analysis = analyze(raw_prompt)
 
     summary = analysis.get("task_summary", "")
     questions = analysis.get("questions", [])
 
-    if summary:
+    if not quiet and summary:
         show(f"\n[dim]Understanding:[/dim] {summary}")
 
     if not questions:
-        show("\n[green]Your prompt looks detailed enough — no extra questions needed.[/green]\n")
+        if not quiet:
+            show("\n[green]Your prompt looks detailed enough — no extra questions needed.[/green]\n")
+        return raw_prompt
+
+    # In quiet mode, we can't ask questions interactively — return original
+    if quiet:
         return raw_prompt
 
     count = len(questions)
@@ -192,9 +227,11 @@ def main():
     args = parser.parse_args()
 
     # Get prompt from arg, stdin, or interactive
+    stdin_is_pipe = not sys.stdin.isatty()
+
     if args.prompt:
         raw = args.prompt
-    elif not sys.stdin.isatty():
+    elif stdin_is_pipe:
         raw = sys.stdin.read().strip()
     else:
         show("\n[bold]What do you want Claude Code to do?[/bold]")
@@ -204,5 +241,15 @@ def main():
         print("Error: No prompt provided.", file=sys.stderr)
         sys.exit(1)
 
-    final = run(raw)
-    print(final)
+    # Force quiet mode when stdin is piped — interactive Q&A can't work
+    quiet = args.quiet or stdin_is_pipe
+
+    try:
+        final = run(raw, quiet=quiet)
+        print(final)
+    except ClaudeNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nCancelled.", file=sys.stderr)
+        sys.exit(130)

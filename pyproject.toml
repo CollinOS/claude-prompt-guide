@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
 authors = [
-    { name = "Your Name", email = "you@example.com" },
+    { name = "CollinOS" },
 ]
 keywords = ["claude", "prompt", "cli", "ai", "coding", "claude-code"]
 classifiers = [
@@ -35,37 +35,12 @@ rich = ["rich>=13.0.0"]
 prompt-guide = "prompt_guide.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourname/claude-prompt-guide"
-Issues = "https://github.com/yourname/claude-prompt-guide/issues"
-Repository = "https://github.com/yourname/claude-prompt-guide"
+Homepage = "https://github.com/CollinOS/claude-prompt-guide"
+Issues = "https://github.com/CollinOS/claude-prompt-guide/issues"
+Repository = "https://github.com/CollinOS/claude-prompt-guide"
 
 [tool.hatch.build.targets.sdist]
 include = ["prompt_guide/"]
 
 [tool.hatch.build.targets.wheel]
 include = ["prompt_guide/"]
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# FILE: .gitignore
-# ═══════════════════════════════════════════════════════════════════════
-
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
-*.egg
-.eggs/
-*.whl
-.venv/
-venv/
-env/
-.env
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db

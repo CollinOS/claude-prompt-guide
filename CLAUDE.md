@@ -8,7 +8,7 @@ An interactive CLI tool that coaches users into writing better prompts for Claud
 This is a Python CLI tool with two distribution modes:
 
 1. **Package mode** (`prompt_guide/`): The structured source code, useful for development and if pip distribution is added later. Entry point is `prompt_guide.cli:main`.
-2. **Standalone mode** (`standalone/prompt-guide.py`): The primary distribution file. A single self-contained Python file users drop into `~/.claude/hooks/`. Has zero required dependencies — `rich` is optional for nicer UI, falls back to plain stdin/stdout. This is what most users will install.
+2. **Standalone mode** (`standalone/prompt-guide.py`): The primary distribution file. A single self-contained Python file users drop into `~/.claude/scripts/`. Has zero required dependencies — `rich` is optional for nicer UI, falls back to plain stdin/stdout. This is what most users will install.
 
 The primary usage method is as a **Claude Code slash command** (`/guide`). Users create a `~/.claude/commands/guide.md` file that tells Claude Code to run our script. This is NOT a toggle — it runs per-prompt when the user explicitly types `/guide`. There is no persistent mode or PreMessage hook (yet).
 
