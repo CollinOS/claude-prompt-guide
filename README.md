@@ -1,4 +1,3 @@
-
 # Claude Prompt Guide
 
 An interactive CLI tool that coaches you into writing better prompts for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Instead of rewriting your prompt for you, it asks the right follow-up questions so Claude Code gets the context it needs on the first try.
@@ -8,7 +7,8 @@ An interactive CLI tool that coaches you into writing better prompts for [Claude
 ## Demo
 
 ```
-$ prompt-guide "fix the auth bug"
+$ claude
+> /guide fix the auth bug
 
 ┌─ Your prompt ────────────────────────────┐
 │ fix the auth bug                         │
@@ -44,111 +44,110 @@ Understanding: Fix a bug in the authentication system
 Send to Claude? [yes/edit/cancel]: yes
 ```
 
-## Install
+## How It Works
 
-### Option A: pip
+1. You type `/guide` followed by a casual prompt inside Claude Code
+2. The tool asks you 2-4 targeted follow-up questions specific to your task
+3. You answer in a few words each (or press enter to skip any)
+4. It assembles everything into a clean, context-rich prompt
+5. You review and choose to send, edit, or cancel
 
-```bash
-pip install claude-prompt-guide
-```
+The questions are generated dynamically by Claude — not from a static template — so they're always relevant to what you're actually asking.
 
-### Option B: pipx (recommended — keeps it isolated)
-
-```bash
-pipx install claude-prompt-guide
-```
-
-### Option C: Single file (no install needed)
-
-```bash
-mkdir -p ~/.claude/hooks
-curl -o ~/.claude/hooks/prompt-guide.py \
-  https://raw.githubusercontent.com/yourname/claude-prompt-guide/main/standalone/prompt-guide.py
-chmod +x ~/.claude/hooks/prompt-guide.py
-```
-
-### Option D: From source
-
-```bash
-git clone https://github.com/yourname/claude-prompt-guide.git
-cd claude-prompt-guide
-pip install .
-```
-
-### Optional: nicer UI
-
-```bash
-pip install rich
-```
-
-The tool works without `rich` — it falls back to plain text. Rich just makes it prettier.
+**Important:** `/guide` is a command you use per-prompt, not a toggle. When you want the guided experience, use `/guide your prompt`. When you don't, just type your prompt normally.
 
 ## Prerequisites
 
 - Python 3.9+
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
 
-That's it. No API key to configure — the tool uses your existing Claude Code auth.
+## Install
 
-## Usage
+### Step 1: Clone the repo
 
-### Standalone
+```bash
+git clone https://github.com/yourname/claude-prompt-guide.git
+```
+
+### Step 2: Set up the slash command
+
+Copy the standalone script into your Claude Code hooks directory:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp claude-prompt-guide/standalone/prompt-guide.py ~/.claude/hooks/prompt-guide.py
+chmod +x ~/.claude/hooks/prompt-guide.py
+```
+
+Then create (or edit) `~/.claude/commands/guide.md`:
+
+```bash
+mkdir -p ~/.claude/commands
+cat > ~/.claude/commands/guide.md << 'EOF'
+Run the prompt guide script to help the user write a better prompt.
+Execute: python3 ~/.claude/hooks/prompt-guide.py "$ARGUMENTS"
+Use the output as your task instructions and proceed with the task.
+EOF
+```
+
+### Step 3: Use it
+
+Open Claude Code and type:
+
+```
+/guide fix the auth bug
+```
+
+### Optional: Install rich for a nicer UI
+
+```bash
+pip install rich
+```
+
+The tool works fine without it — just falls back to plain text prompts.
+
+## Alternative Usage
+
+If you prefer not to use the slash command, there are other ways to run it.
+
+### Standalone (outside Claude Code)
 
 ```bash
 # With a prompt
-prompt-guide "add pagination to the users API"
+python3 ~/.claude/hooks/prompt-guide.py "add pagination to the users API"
 
-# Interactive
-prompt-guide
+# Interactive — it will ask you what you want to do
+python3 ~/.claude/hooks/prompt-guide.py
 
-# Quiet mode — outputs only the final prompt
-prompt-guide -q "fix the login bug"
+# Quiet mode — outputs only the final prompt, no UI
+python3 ~/.claude/hooks/prompt-guide.py -q "fix the login bug"
 ```
 
-### Piped into Claude Code
-
-```bash
-claude "$(prompt-guide -q 'fix the login bug')"
-```
-
-### Shell alias (recommended)
+### Shell alias
 
 Add to `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 cg() {
     local enriched
-    enriched=$(prompt-guide -q "$1")
+    enriched=$(python3 ~/.claude/hooks/prompt-guide.py -q "$1")
     if [ $? -eq 0 ] && [ -n "$enriched" ]; then
         claude "$enriched"
     fi
 }
 ```
 
-Then just:
+Reload your shell, then:
 
 ```bash
 cg "add dark mode"
 ```
 
-### Single-file version
-
-If you used the single-file install (Option C):
+### Piped directly into Claude Code
 
 ```bash
-python3 ~/.claude/hooks/prompt-guide.py "fix the auth bug"
+claude "$(python3 ~/.claude/hooks/prompt-guide.py -q 'fix the login bug')"
 ```
-
-## How It Works
-
-1. You type a casual prompt
-2. The tool sends it to Claude (via the `claude` CLI) to identify what context is missing
-3. It asks you 2-4 targeted follow-up questions specific to your task
-4. You answer in a few words each (or skip any)
-5. It assembles everything into a clean prompt
-6. You review and send, edit, or cancel
-
-The questions are generated dynamically — not from a static template. So they're always relevant to what you're actually asking.
 
 ## Why This Instead of a Prompt Rewriter?
 
@@ -159,17 +158,24 @@ Prompt rewriters change your words behind the scenes. This tool **asks you quest
 - **Your intent** is never misinterpreted by a rewriter
 - **The context** comes from you — the person who actually knows the codebase
 
-After using this for a while, you'll internalize the patterns and start writing better prompts naturally.
+After using this for a while, you'll start writing better prompts naturally and won't need the tool as much. That's the point.
+
+## Uninstall
+
+```bash
+rm ~/.claude/hooks/prompt-guide.py
+rm ~/.claude/commands/guide.md
+rm -rf /path/to/claude-prompt-guide  # the cloned repo
+```
 
 ## Contributing
 
 Contributions welcome! See [CLAUDE.md](CLAUDE.md) for architecture details and development notes.
 
 ```bash
-git clone https://github.com/yourname/claude-prompt-guide.git
+git clone https://github.com/CollinOS/claude-prompt-guide.git
 cd claude-prompt-guide
-pip install -e .
-python -m prompt_guide "test prompt"
+python3 standalone/prompt-guide.py "test prompt"
 ```
 
 ## License
