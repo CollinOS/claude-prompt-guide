@@ -30,6 +30,41 @@ _RICH_TAG_RE = re.compile(
     r"\[/?[a-zA-Z]\w*(?:\s+\w+)*\]"
 )
 
+# ── TTY fallback for reading input when stdin is piped ────────────────
+_tty = None
+
+
+def _open_tty():
+    """Open /dev/tty for interactive input when stdin is piped."""
+    global _tty
+    if _tty is not None:
+        return _tty
+    try:
+        _tty = open("/dev/tty", "r")
+        return _tty
+    except OSError:
+        return None
+
+
+def _read_line(prompt_text: str = "") -> str:
+    """Read a line, using /dev/tty as fallback when stdin is piped."""
+    if sys.stdin.isatty():
+        return input(prompt_text)
+    tty = _open_tty()
+    if tty:
+        if prompt_text:
+            print(prompt_text, end="", file=sys.stderr, flush=True)
+        line = tty.readline()
+        if not line:
+            raise EOFError
+        return line.rstrip("\n")
+    raise EOFError
+
+
+def can_interact() -> bool:
+    """Check if interactive input is possible (stdin TTY or /dev/tty)."""
+    return sys.stdin.isatty() or _open_tty() is not None
+
 
 def _strip_markup(text: str) -> str:
     return _RICH_TAG_RE.sub("", text)
@@ -52,30 +87,29 @@ def show_panel(text: str, title: str = "", border: str = "blue"):
 
 
 def ask(default: str = "") -> str:
-    if HAS_RICH:
+    # Skip Rich's Prompt.ask when stdin is piped — it reads from stdin
+    if HAS_RICH and sys.stdin.isatty():
         return Prompt.ask("  [bold]>[/bold]", default=default, console=console)
-    else:
-        try:
-            result = input("  > ").strip()
-            return result if result else default
-        except EOFError:
-            return default
+    try:
+        result = _read_line("  > ").strip()
+        return result if result else default
+    except EOFError:
+        return default
 
 
 def ask_choice(prompt_text: str, choices: list[str], default: str = "yes") -> str:
-    if HAS_RICH:
+    if HAS_RICH and sys.stdin.isatty():
         return Prompt.ask(
             f"[bold]{prompt_text}[/bold]",
             choices=choices,
             default=default,
             console=console,
         )
-    else:
-        try:
-            raw = input(f"{prompt_text} [{'/'.join(choices)}] ({default}): ").strip()
-            return raw if raw in choices else default
-        except EOFError:
-            return default
+    try:
+        raw = _read_line(f"{_strip_markup(prompt_text)} [{'/'.join(choices)}] ({default}): ").strip()
+        return raw if raw in choices else default
+    except EOFError:
+        return default
 
 
 # ── Core logic ────────────────────────────────────────────────────────
@@ -143,14 +177,32 @@ def assemble(original: str, answers: dict[str, str]) -> str:
     return response if response else original
 
 
-def run(raw_prompt: str, quiet: bool = False) -> str:
+def _format_delegated_output(raw_prompt: str, summary: str, questions: list[dict]) -> str:
+    """Format analysis as instructions for Claude Code when we can't interact."""
+    lines = []
+    lines.append(f"TASK: {raw_prompt}")
+    if summary:
+        lines.append(f"\nUNDERSTANDING: {summary}")
+    lines.append("\nBefore starting, ask the user these clarifying questions:")
+    for i, q in enumerate(questions, 1):
+        lines.append(f"\n{i}. {q['question']}")
+        if q.get("why"):
+            lines.append(f"   Why this matters: {q['why']}")
+        if q.get("example_answer"):
+            lines.append(f"   Example answer: {q['example_answer']}")
+    lines.append("\nAfter getting the user's answers, proceed with the task using the additional context they provided.")
+    return "\n".join(lines)
+
+
+def run(raw_prompt: str, quiet: bool = False, delegate: bool = False) -> str:
     """Main interactive guide flow.
 
     Args:
         raw_prompt: The user's draft prompt.
-        quiet: If True, skip interactive Q&A and auto-send the assembled prompt.
+        quiet: If True, skip interactive Q&A and return the original prompt.
+        delegate: If True, output analysis for Claude Code to ask questions itself.
     """
-    if not quiet:
+    if not quiet and not delegate:
         show("")
         show_panel(raw_prompt, title="Your prompt")
         show("\n[dim]Thinking about what would help...[/dim]")
@@ -160,15 +212,19 @@ def run(raw_prompt: str, quiet: bool = False) -> str:
     summary = analysis.get("task_summary", "")
     questions = analysis.get("questions", [])
 
-    if not quiet and summary:
+    if not quiet and not delegate and summary:
         show(f"\n[dim]Understanding:[/dim] {summary}")
 
     if not questions:
-        if not quiet:
+        if not quiet and not delegate:
             show("\n[green]Your prompt looks detailed enough — no extra questions needed.[/green]\n")
         return raw_prompt
 
-    # In quiet mode, we can't ask questions interactively — return original
+    # Delegate mode: output analysis for Claude Code to handle interactively
+    if delegate:
+        return _format_delegated_output(raw_prompt, summary, questions)
+
+    # Quiet mode: can't interact, return original
     if quiet:
         return raw_prompt
 
@@ -206,7 +262,7 @@ def run(raw_prompt: str, quiet: bool = False) -> str:
         lines = []
         try:
             while True:
-                lines.append(input())
+                lines.append(_read_line())
         except EOFError:
             pass
         return "\n".join(lines) if lines else final
@@ -241,11 +297,17 @@ def main():
         print("Error: No prompt provided.", file=sys.stderr)
         sys.exit(1)
 
-    # Force quiet mode when stdin is piped — interactive Q&A can't work
-    quiet = args.quiet or stdin_is_pipe
+    # Determine interaction mode:
+    # - quiet: user explicitly asked for no interaction (--quiet flag)
+    # - delegate: stdin is piped and no TTY available (e.g. Claude Code slash command)
+    #   → output analysis for Claude Code to ask the questions itself
+    # - interactive: normal terminal usage
+    can_tty = can_interact()
+    quiet = args.quiet
+    delegate = stdin_is_pipe and not can_tty and not quiet
 
     try:
-        final = run(raw, quiet=quiet)
+        final = run(raw, quiet=quiet, delegate=delegate)
         print(final)
     except ClaudeNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
