@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claude-prompt-guide"
+version = "0.1.0"
+description = "Interactive CLI that coaches you into writing better prompts for Claude Code"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Your Name", email = "you@example.com" },
+]
+keywords = ["claude", "prompt", "cli", "ai", "coding", "claude-code"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
+dependencies = []
+
+[project.optional-dependencies]
+rich = ["rich>=13.0.0"]
+
+[project.scripts]
+prompt-guide = "prompt_guide.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourname/claude-prompt-guide"
+Issues = "https://github.com/yourname/claude-prompt-guide/issues"
+Repository = "https://github.com/yourname/claude-prompt-guide"
+
+[tool.hatch.build.targets.sdist]
+include = ["prompt_guide/"]
+
+[tool.hatch.build.targets.wheel]
+include = ["prompt_guide/"]
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# FILE: .gitignore
+# ═══════════════════════════════════════════════════════════════════════
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.env
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
